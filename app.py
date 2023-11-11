@@ -75,24 +75,24 @@ def register():
     else:
         return jsonify({'success': False})
 
-def change_request(req):
-    try:
-        session['access_token']=req['access_token']
-    except:
-        pass
-    try:
-        session['refresh_token'] = req['refresh_token']
-    except:
-        pass
-    try:
-        session['email'] = req['email']
-    except:
-        pass
+# def change_request(req):
+#     try:
+#         session['access_token']=req['access_token']
+#     except:
+#         pass
+#     try:
+#         session['refresh_token'] = req['refresh_token']
+#     except:
+#         pass
+#     try:
+#         session['email'] = req['email']
+#     except:
+#         pass
 
 
 @app.route('/login', methods=['GET'])
 def login():
-    change_request(request.get_json())
+    #change_request(request.get_json())
     try:
         if get_access_token():
             return jsonify({'successs': True,
