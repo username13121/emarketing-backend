@@ -3,13 +3,13 @@ from flask import Flask, redirect, request, session, jsonify
 import json
 from flask_session import Session
 import requests
-# from google.oauth2 import id_token
-# from google_auth_oauthlib.flow import Flow
-# from google.auth.transport.requests import Request
-# from googleapiclient.discovery import build
-# from email.mime.text import MIMEText
-# import base64
-# from google.oauth2.credentials import Credentials
+from google.oauth2 import id_token
+from google_auth_oauthlib.flow import Flow
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+from email.mime.text import MIMEText
+import base64
+from google.oauth2.credentials import Credentials
 
 app = Flask(__name__)
 
@@ -19,6 +19,8 @@ app.config['SECRET_KEY'] = os.urandom(24)
 Session(app)
 
 CLIENT_SECRET = json.load(open('client_secret.json'))['web']
+
+
 
 def get_email():
     token_data = requests.get(url='https://www.googleapis.com/oauth2/v1/tokeninfo',
@@ -99,9 +101,67 @@ def login():
         pass
     return jsonify({'success': False})
 
+@app.route('/get-link', methods=['GET'])
+def get_link():
+    redirect_uri=request.get_json()['redirect_uri']
 
+    link = Flow.from_client_secrets_file(
+        'client_secret.json',
+        scopes=['openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://mail.google.com/'],
+        redirect_uri=redirect_uri
+    ).\
+        authorization_url(access_type='offline',
+                          include_granted_scopes='true',
+                          prompt='consent')
+    return jsonify({'authorization_link': link})
 
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
