@@ -113,7 +113,7 @@ def get_link():
         authorization_url(access_type='offline',
                           include_granted_scopes='true',
                           prompt='consent')
-    return jsonify({'authorization_link': link})
+    return jsonify({'authorization_link': link[0]})
 
 
 if __name__ == '__main__':
