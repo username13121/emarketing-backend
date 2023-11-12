@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>app &#8212; Project 1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b3523f8e" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=039e1c02" />
+    <script src="../_static/documentation_options.js?v=29a6c3e3"></script>
+    <script src="../_static/doctools.js?v=888ff710"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for app</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">redirect</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">session</span><span class="p">,</span> <span class="n">jsonify</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">from</span> <span class="nn">flask_session</span> <span class="kn">import</span> <span class="n">Session</span>
+<span class="kn">import</span> <span class="nn">requests</span>
+<span class="kn">from</span> <span class="nn">google.oauth2</span> <span class="kn">import</span> <span class="n">id_token</span>
+<span class="kn">from</span> <span class="nn">google_auth_oauthlib.flow</span> <span class="kn">import</span> <span class="n">Flow</span>
+<span class="kn">from</span> <span class="nn">google.auth.transport.requests</span> <span class="kn">import</span> <span class="n">Request</span>
+<span class="kn">from</span> <span class="nn">googleapiclient.discovery</span> <span class="kn">import</span> <span class="n">build</span>
+<span class="kn">from</span> <span class="nn">email.mime.text</span> <span class="kn">import</span> <span class="n">MIMEText</span>
+<span class="kn">import</span> <span class="nn">base64</span>
+<span class="kn">from</span> <span class="nn">google.oauth2.credentials</span> <span class="kn">import</span> <span class="n">Credentials</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+<span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;SESSION_TYPE&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;filesystem&#39;</span>
+<span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;SECRET_KEY&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">urandom</span><span class="p">(</span><span class="mi">24</span><span class="p">)</span>
+<span class="n">Session</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+
+<span class="n">CLIENT_SECRET</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;client_secret.json&#39;</span><span class="p">))[</span><span class="s1">&#39;web&#39;</span><span class="p">]</span>
+
+<div class="viewcode-block" id="get_email">
+<a class="viewcode-back" href="../app.html#app.get_email">[docs]</a>
+<span class="k">def</span> <span class="nf">get_email</span><span class="p">():</span>
+    <span class="c1"># &quot;&quot;&quot;</span>
+    <span class="c1"># Get email from Google API</span>
+    <span class="c1">#</span>
+    <span class="c1"># :param string session[&#39;email&#39;]:</span>
+    <span class="c1">#</span>
+    <span class="c1"># :return: email</span>
+    <span class="c1">#</span>
+    <span class="c1"># &quot;&quot;&quot;</span>
+    <span class="n">token_data</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="s1">&#39;https://www.googleapis.com/oauth2/v1/tokeninfo&#39;</span><span class="p">,</span>
+                              <span class="n">params</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;access_token=</span><span class="si">{</span><span class="n">session</span><span class="p">[</span><span class="s2">&quot;access_token&quot;</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">token_data</span><span class="p">[</span><span class="s1">&#39;email&#39;</span><span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="set_user_info">
+<a class="viewcode-back" href="../app.html#app.set_user_info">[docs]</a>
+<span class="k">def</span> <span class="nf">set_user_info</span><span class="p">(</span><span class="n">refresh_token</span><span class="p">):</span>
+
+    <span class="c1"># &quot;&quot;&quot;</span>
+    <span class="c1"># Gets access and id tokens by refresh token and sets it as a session variable</span>
+    <span class="c1">#</span>
+    <span class="c1"># :param string refresh_token:</span>
+    <span class="c1"># :return:</span>
+    <span class="c1"># &quot;&quot;&quot;</span>
+    <span class="n">tokens</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s1">&#39;https://oauth2.googleapis.com/token&#39;</span><span class="p">,</span>
+                           <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+                               <span class="s1">&#39;client_id&#39;</span><span class="p">:</span> <span class="n">CLIENT_SECRET</span><span class="p">[</span><span class="s1">&#39;client_id&#39;</span><span class="p">],</span>
+                               <span class="s1">&#39;client_secret&#39;</span><span class="p">:</span> <span class="n">CLIENT_SECRET</span><span class="p">[</span><span class="s1">&#39;client_secret&#39;</span><span class="p">],</span>
+                               <span class="s1">&#39;grant_type&#39;</span><span class="p">:</span> <span class="s1">&#39;refresh_token&#39;</span><span class="p">,</span>
+                               <span class="s1">&#39;refresh_token&#39;</span><span class="p">:</span> <span class="n">refresh_token</span><span class="p">})</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">session</span><span class="p">[</span><span class="s1">&#39;id_token&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tokens</span><span class="p">[</span><span class="s1">&#39;id_token&#39;</span><span class="p">]</span>
+        <span class="n">session</span><span class="p">[</span><span class="s1">&#39;access_token&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tokens</span><span class="p">[</span><span class="s1">&#39;access_token&#39;</span><span class="p">]</span>
+        <span class="n">session</span><span class="p">[</span><span class="s1">&#39;refresh_token&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">refresh_token</span>
+        <span class="n">session</span><span class="p">[</span><span class="s1">&#39;email&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">get_email</span><span class="p">()</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span></div>
+
+
+
+<div class="viewcode-block" id="check_access_token">
+<a class="viewcode-back" href="../app.html#app.check_access_token">[docs]</a>
+<span class="k">def</span> <span class="nf">check_access_token</span><span class="p">():</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">get_email</span><span class="p">()</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span></div>
+
+
+
+<div class="viewcode-block" id="get_access_token">
+<a class="viewcode-back" href="../app.html#app.get_access_token">[docs]</a>
+<span class="k">def</span> <span class="nf">get_access_token</span><span class="p">():</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">access_token</span> <span class="o">=</span> <span class="n">session</span><span class="p">[</span><span class="s1">&#39;access_token&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">check_access_token</span><span class="p">():</span>
+            <span class="k">return</span> <span class="n">access_token</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+    <span class="k">if</span> <span class="n">set_user_info</span><span class="p">(</span><span class="n">session</span><span class="p">[</span><span class="s1">&#39;refresh_token&#39;</span><span class="p">]):</span>
+        <span class="k">return</span> <span class="n">session</span><span class="p">[</span><span class="s1">&#39;access_token&#39;</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span></div>
+
+
+
+<div class="viewcode-block" id="register">
+<a class="viewcode-back" href="../app.html#app.register">[docs]</a>
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/register&#39;</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;POST&#39;</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">register</span><span class="p">():</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This route is for registration of new users. It sets user info in the session</span>
+
+<span class="sd">:param refresh_token:</span>
+
+<span class="sd">:return: success: true/false, cookies{session}</span>
+
+<span class="sd">Required request format:</span>
+
+<span class="sd">.. code-block:: http</span>
+
+<span class="sd">    POST /register HTTP/1.1</span>
+<span class="sd">    Content-Type: application/json</span>
+<span class="sd">    Content-Length: 124</span>
+
+<span class="sd">    {&quot;refresh_token&quot;: &quot;1//0cVS9kIaHwPb_CgYIARAAGAwSNwF-L9Ira2i9rNPs3tyyzlk-yssv2Uwwv-tSxHoMBmB73ZI62hhbYHdXimIP266fFtPAgigbEWw&quot;}</span>
+
+<span class="sd">Expected response:</span>
+
+<span class="sd">.. code-block:: http</span>
+
+<span class="sd">    HTTP/1.1 200 OK</span>
+<span class="sd">    Server: Werkzeug/3.0.1 Python/3.11.3</span>
+<span class="sd">    Date: Sun, 12 Nov 2023 18:34:44 GMT</span>
+<span class="sd">    Content-Type: application/json</span>
+<span class="sd">    Content-Length: 22</span>
+<span class="sd">    Set-Cookie: session=3006a9d2-11f2-4ffc-958d-89e0e92abec7; Expires=Wed, 13 Dec 2023 18:34:44 GMT; HttpOnly; Path=/</span>
+<span class="sd">    Connection: close</span>
+
+<span class="sd">    { &quot;success&quot;: true }</span>
+
+
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">refresh_token</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">get_json</span><span class="p">()[</span><span class="s1">&#39;refresh_token&#39;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">set_user_info</span><span class="p">(</span><span class="n">refresh_token</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;success&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;success&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">})</span></div>
+
+
+
+<span class="c1"># def change_request(req):</span>
+<span class="c1">#     try:</span>
+<span class="c1">#         session[&#39;access_token&#39;]=req[&#39;access_token&#39;]</span>
+<span class="c1">#     except:</span>
+<span class="c1">#         pass</span>
+<span class="c1">#     try:</span>
+<span class="c1">#         session[&#39;refresh_token&#39;] = req[&#39;refresh_token&#39;]</span>
+<span class="c1">#     except:</span>
+<span class="c1">#         pass</span>
+<span class="c1">#     try:</span>
+<span class="c1">#         session[&#39;email&#39;] = req[&#39;email&#39;]</span>
+<span class="c1">#     except:</span>
+<span class="c1">#         pass</span>
+
+
+<div class="viewcode-block" id="login">
+<a class="viewcode-back" href="../app.html#app.login">[docs]</a>
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/login&#39;</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;GET&#39;</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">login</span><span class="p">():</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This route is for authorizing registered users. It checks user&#39;s cookies and returns email</span>
+
+<span class="sd">:param cookies{session}:</span>
+
+<span class="sd">:return: success: true/false, email</span>
+
+<span class="sd">Required request format:</span>
+
+<span class="sd">.. code-block:: http</span>
+
+<span class="sd">    GET /login HTTP/1.1</span>
+<span class="sd">    Cookie: session=9b2e5bc4-a550-4903-b396-cd3305de4b76</span>
+
+<span class="sd">Expected response:</span>
+
+<span class="sd">.. code-block:: http</span>
+
+<span class="sd">    HTTP/1.1 200 OK</span>
+<span class="sd">    Server: Werkzeug/3.0.1 Python/3.11.3</span>
+<span class="sd">    Date: Sun, 12 Nov 2023 19:29:13 GMT</span>
+<span class="sd">    Content-Type: application/json</span>
+<span class="sd">    Content-Length: 64</span>
+<span class="sd">    Set-Cookie: session=9b2e5bc4-a550-4903-b396-cd3305de4b76; Expires=Wed, 13 Dec 2023 19:29:13 GMT; HttpOnly; Path=/</span>
+<span class="sd">    Connection: close</span>
+
+<span class="sd">    { &quot;email&quot;: &quot;username12312355@gmail.com&quot;,</span>
+<span class="sd">    &quot;successs&quot;: true }</span>
+
+
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># change_request(request.get_json())</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">get_access_token</span><span class="p">():</span>
+            <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;successs&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                            <span class="s1">&#39;email&#39;</span><span class="p">:</span> <span class="n">session</span><span class="p">[</span><span class="s1">&#39;email&#39;</span><span class="p">]})</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">pass</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;success&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">})</span></div>
+
+
+
+<div class="viewcode-block" id="get_link">
+<a class="viewcode-back" href="../app.html#app.get_link">[docs]</a>
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/get-link&#39;</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;GET&#39;</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">get_link</span><span class="p">():</span>
+    <span class="n">redirect_uri</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">get_json</span><span class="p">()[</span><span class="s1">&#39;redirect_uri&#39;</span><span class="p">]</span>
+
+    <span class="n">link</span> <span class="o">=</span> <span class="n">Flow</span><span class="o">.</span><span class="n">from_client_secrets_file</span><span class="p">(</span>
+        <span class="s1">&#39;client_secret.json&#39;</span><span class="p">,</span>
+        <span class="n">scopes</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;openid&#39;</span><span class="p">,</span> <span class="s1">&#39;https://www.googleapis.com/auth/userinfo.email&#39;</span><span class="p">,</span> <span class="s1">&#39;https://mail.google.com/&#39;</span><span class="p">],</span>
+        <span class="n">redirect_uri</span><span class="o">=</span><span class="n">redirect_uri</span>
+    <span class="p">)</span><span class="o">.</span> \
+        <span class="n">authorization_url</span><span class="p">(</span><span class="n">access_type</span><span class="o">=</span><span class="s1">&#39;offline&#39;</span><span class="p">,</span>
+                          <span class="n">include_granted_scopes</span><span class="o">=</span><span class="s1">&#39;true&#39;</span><span class="p">,</span>
+                          <span class="n">prompt</span><span class="o">=</span><span class="s1">&#39;consent&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s1">&#39;authorization_link&#39;</span><span class="p">:</span> <span class="n">link</span><span class="p">[</span><span class="mi">0</span><span class="p">]})</span></div>
+
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">debug</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">Project</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../modules.html">pythonProject6</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2023, Author.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 7.2.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.13</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
