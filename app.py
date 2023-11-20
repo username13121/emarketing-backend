@@ -12,8 +12,12 @@ import base64
 from google.oauth2.credentials import Credentials
 import db
 from psycopg2.extras import execute_values
+from email.mime.text import MIMEText
+from base64 import urlsafe_b64decode, urlsafe_b64encode
 
 app = Flask(__name__)
+
+SCOPES = ['openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://mail.google.com/'],
 
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SECRET_KEY'] = os.urandom(24)
@@ -80,11 +84,10 @@ def add_receivers(sender, receivers):
 
 
 def delete_receivers(sender, receivers):
-    print(tuple(receivers))
     try:
         sender = get_id(sender)
         db.cursor.execute(
-        f'DELETE FROM receivers WHERE senderId = {sender} AND email in {tuple(receivers)}'
+            f'DELETE FROM receivers WHERE senderId = {sender} AND email in {tuple(receivers)}'
         )
         return True
     except:
@@ -117,6 +120,35 @@ def set_user_info(refresh_token):
 def check_access_token():
     try:
         get_email()
+        return True
+    except:
+        return False
+
+
+def build_credentials(access_token):
+    client_secret = CLIENT_SECRET
+    client_secret['refresh_token'] = session['refresh_token']
+    credentials = Credentials.from_authorized_user_info(
+        CLIENT_SECRET
+    )
+    credentials.token = {'access_token': access_token, 'token_type': 'Bearer'}
+    return build('gmail', 'v1', credentials=credentials)
+
+
+def build_email(body, subject):
+    message = MIMEText(body, 'html')
+    message['to'] = ', '.join(get_receivers(session['email']))
+    message['from'] = session['email']
+    message['subject'] = subject
+    return {'raw': urlsafe_b64encode(message.as_bytes()).decode()}
+
+
+def send_message(subject, body):
+    try:
+        build_credentials(session['access_token']).users().messages().send(
+        userId="me",
+        body=build_email(body, subject)
+        ).execute()
         return True
     except:
         return False
@@ -172,9 +204,10 @@ def login():
         pass
     return jsonify({'success': False})
 
+
 @app.route('/receivers', methods=['POST', 'GET'])
 def receivers_route():
-    if request.method=='GET':
+    if request.method == 'GET':
         try:
             return jsonify({
                 'success': True,
@@ -186,17 +219,31 @@ def receivers_route():
             })
     else:
         try:
-            add=add_receivers(session['email'], request.get_json()['add'])
+            add = add_receivers(session['email'], request.get_json()['add'])
         except:
-            add=False
+            add = False
         try:
-            delete=delete_receivers(session['email'], request.get_json()['delete'])
+            delete = delete_receivers(session['email'], request.get_json()['delete'])
         except:
-            delete=False
+            delete = False
         return jsonify({
             'success_add': add,
             'success_delete': delete
         })
+
+
+@app.route('/send-email', methods=['POST', 'GET'])
+def send_email():
+    if request.method == 'POST':
+        req = request.get_json()
+        if send_message(req['subject'], req['body']):
+            return jsonify({
+                'success': True
+            })
+        else:
+            return jsonify({
+                'success': False
+            })
 
 
 # @app.route('/receivers', methods=['POST', 'GET'])
