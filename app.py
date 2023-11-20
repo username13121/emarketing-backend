@@ -1,226 +1,271 @@
 import os
 from flask import Flask, redirect, request, session, jsonify
+import json
+from flask_session import Session
+import requests
 from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
 from google.auth.transport.requests import Request
-import json
-from flask_session import Session  # Import the Flask-Session extension
-from flask_cors import CORS
-import requests
 from googleapiclient.discovery import build
 from email.mime.text import MIMEText
 import base64
 from google.oauth2.credentials import Credentials
-import re
-import hashlib
-import jwt
-import datetime
+import db
+from psycopg2.extras import execute_values
+from email.mime.text import MIMEText
+from base64 import urlsafe_b64decode, urlsafe_b64encode
 
 app = Flask(__name__)
+
+SCOPES = ['openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://mail.google.com/'],
 
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SECRET_KEY'] = os.urandom(24)
 
 Session(app)
-CORS(app)
-
-client_secret = json.load(open('client_secret.json'))
-
-CLIENT_ID = client_secret['web']['client_id']
-SCOPE = 'https://mail.google.com/'
-REDIRECT_URI = 'https://localhost:5000/callback/'
-ACCESS_TOKEN_INFO = 'https://www.googleapis.com/oauth2/v1/tokeninfo'
-
-TOKEN_FILE = 'user_tokens.json'
-SECRET_KEY = 'devnet+project'
-
-flow = Flow.from_client_secrets_file(
-    'client_secret.json',
-    scopes=['openid', 'https://www.googleapis.com/auth/userinfo.email', SCOPE],
-    redirect_uri=REDIRECT_URI,
-    # access_type='oftine' # Doesn't work
-)
+CLIENT_SECRET = json.load(open('client_secret.json'))['web']
 
 
-@app.route("/login-google", methods=['POST'])
-def login_google():
-    req_data = request.get_json()
-    token = req_data['token']
-    client_id = req_data['client_id']
-    id_info = id_token.verify_oauth2_token(token, Request(), client_id)
-    user_email = id_info.get('email', 'Email not available')
-
-    return jsonify(user_email)
-
-
-@app.route('/login', methods=['POST'])
-def login():
-    req_data = request.get_json()
-    email = req_data['email']
-    password = req_data['password']
-
+def check_db():
     try:
-        with open("./data/users.json", 'r') as file:
-            file_data = json.load(file)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return jsonify({'error': 'No registered users'}), 401
-
-    for user in file_data["users"]:
-        if user["email"] == email:
-            stored_password = user["password"]
-            input_password = hash_password(password)
-
-            if stored_password == input_password:
-                payload = {
-                    'email': email,
-                    'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1)
-                }
-                token = jwt.encode(payload, SECRET_KEY, algorithm='HS256')
-                return jsonify({'token': token}), 200
-
-    return jsonify({'error': 'Invalid credentials'}), 401
-
-
-@app.route('/register', methods=["POST"])
-def register():
-    req_data = request.get_json()
-    email = req_data['email']
-    password = req_data['password']
-
-    if not is_valid(email):
-        return jsonify({
-            'status': '422',
-            'res': 'failure',
-            'error': 'Invalid email format. Please enter a valid email address'
-        })
-
-    hash_pass = hash_password(password)
-
-    result = save_user({
-        "email": email,
-        "password": hash_pass
-    })
-
-    if result:
-        return jsonify({"email": email}), 201
-    else:
-        return jsonify({'error': 'User with the same email already exists'}), 409
-
-
-@app.route('/callback/')
-def callback():
-    state = session['state']
-    flow.fetch_token(authorization_response=request.url)
-
-    if 'error' in request.args:
-        return 'Error: ' + request.args['error']
-
-    id_info = id_token.verify_oauth2_token(flow.credentials.id_token, Request(), CLIENT_ID)
-    user_email = id_info.get('email', 'Email not available')
-
-    tokens = {}
-    if os.path.exists(TOKEN_FILE):
-        with open(TOKEN_FILE, 'r') as file:
-            tokens = json.load(file)
-
-    tokens[user_email] = flow.credentials.to_json()
-    with open(TOKEN_FILE, 'w') as file:
-        json.dump(tokens, file)
-    callback.flow = flow
-
-    session['user_email'] = user_email
-    return f'Logged in as: {user_email}'
-
-
-@app.route('/api/check-auth', methods=['GET'])
-def check_auth():
-    user_email = session.get('user_email')
-
-    with open(TOKEN_FILE, 'r') as user_tokens_json:
-        user_tokens = json.load(user_tokens_json)
-
-    try:
-        token = json.loads(user_tokens[user_email])[
-            'token']
-        token_response = requests.get(url=ACCESS_TOKEN_INFO, params=f'access_token={token}').json()
-    except:
-        return jsonify({'valid': False})
-
-    if token_response['email'] == user_email:
-        return jsonify({'valid': True, 'email': user_email})
-    else:
-        return jsonify({'valid': False})
-
-
-@app.route('/api/send-email', methods=['POST'])
-def send_email():
-    data = request.json
-    with open(TOKEN_FILE, 'r') as user_tokens_json:
-        user_tokens = json.load(user_tokens_json)
-
-    try:
-        user_email = check_auth().json['email']
-    except:
-        return 'cookie/token error'
-    token = json.loads(user_tokens[user_email])
-
-    credentials = Credentials.from_authorized_user_info(token)
-    service = build('gmail', 'v1', credentials=credentials)  # Missing refresh cookie because acces type is not offline
-
-    message = MIMEText(data['text'], 'html')
-    message['to'] = data['to']
-    message['subject'] = data['subject']
-    raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
-
-    service.users().messages().send(
-        userId='me',
-        body={'raw': raw_message}
-    ).execute()
-
-
-def hash_password(password):
-   password_bytes = password.encode('utf-8')
-   hash_object = hashlib.sha256(password_bytes)
-   return hash_object.hexdigest()
-
-
-def is_valid(email):
-    regex = re.compile(r'([A-Za-z0-9]+[.-_])*[A-Za-z0-9]+@[A-Za-z0-9-]+(\.[A-Z|a-z]{2,})+')
-    if re.fullmatch(regex, email):
-      return True
-    else:
-      return False
-
-
-def user_exists(email, users):
-    for user in users:
-        if user["email"] == email:
+        if db.list_table() == ['sender', 'receivers']:
             return True
-    return False
+        else:
+            db.create_table()
+            return check_db()
+    except:
+        return False
 
 
-def save_user(user):
+if check_db():
+    print('Database ok')
+else:
+    print('Database error')
+
+
+def add_sender(sender):
     try:
-        with open("./data/users.json", 'r') as file:
-            # First, attempt to load existing data from the file.
-            file_data = json.load(file)
-    except (FileNotFoundError, json.JSONDecodeError):
-        # If the file doesn't exist or is empty, initialize it with an empty "users" list.
-        file_data = {"users": []}
-
-    # Check if the user with the same email already exists.
-    if not user_exists(user["email"], file_data["users"]):
-        # If the user doesn't exist, append the new user as a dictionary to the "users" list.
-        file_data["users"].append({"email": user["email"], "password": user["password"]})
-
-        # Open the file in write mode and write the updated data back to it.
-        with open("./data/users.json", 'w') as file:
-            json.dump(file_data, file, indent=4)
+        db.cursor.execute(
+            f'INSERT INTO sender(email) VALUES (\'{sender}\')'
+            'ON CONFLICT DO NOTHING')
         return True
+    except:
+        return False
+
+
+def get_id(sender):
+    try:
+        db.cursor.execute(
+            f'SELECT senderId FROM sender WHERE email=\'{sender}\'')
+        return db.cursor.fetchone()[0]
+    except:
+        return False
+
+
+def get_receivers(sender):
+    try:
+        db.cursor.execute(
+            f'SELECT email FROM receivers WHERE senderId=\'{get_id(sender)}\'')
+        return [i[0] for i in db.cursor.fetchall()]
+    except:
+        return False
+
+
+def add_receivers(sender, receivers):
+    try:
+        sender = get_id(sender)
+        receivers = [(sender, i) for i in receivers]
+        execute_values(db.cursor, 'INSERT INTO receivers VALUES %s'
+                                  'ON CONFLICT DO NOTHING',
+                       receivers)
+        return True
+    except:
+        return False
+
+
+def delete_receivers(sender, receivers):
+    try:
+        sender = get_id(sender)
+        db.cursor.execute(
+            f'DELETE FROM receivers WHERE senderId = {sender} AND email in {tuple(receivers)}'
+        )
+        return True
+    except:
+        return False
+
+
+def get_email():
+    token_data = requests.get(url='https://www.googleapis.com/oauth2/v1/tokeninfo',
+                              params=f'access_token={session["access_token"]}').json()
+    return token_data['email']
+
+
+def set_user_info(refresh_token):
+    tokens = requests.post('https://oauth2.googleapis.com/token',
+                           params={
+                               'client_id': CLIENT_SECRET['client_id'],
+                               'client_secret': CLIENT_SECRET['client_secret'],
+                               'grant_type': 'refresh_token',
+                               'refresh_token': refresh_token}).json()
+    try:
+        session['id_token'] = tokens['id_token']
+        session['access_token'] = tokens['access_token']
+        session['refresh_token'] = refresh_token
+        session['email'] = get_email()
+        return True
+    except:
+        return False
+
+
+def check_access_token():
+    try:
+        get_email()
+        return True
+    except:
+        return False
+
+
+def build_credentials(access_token):
+    client_secret = CLIENT_SECRET
+    client_secret['refresh_token'] = session['refresh_token']
+    credentials = Credentials.from_authorized_user_info(
+        CLIENT_SECRET
+    )
+    credentials.token = {'access_token': access_token, 'token_type': 'Bearer'}
+    return build('gmail', 'v1', credentials=credentials)
+
+
+def build_email(body, subject):
+    message = MIMEText(body, 'html')
+    message['to'] = ', '.join(get_receivers(session['email']))
+    message['from'] = session['email']
+    message['subject'] = subject
+    return {'raw': urlsafe_b64encode(message.as_bytes()).decode()}
+
+
+def send_message(subject, body):
+    try:
+        build_credentials(session['access_token']).users().messages().send(
+        userId="me",
+        body=build_email(body, subject)
+        ).execute()
+        return True
+    except:
+        return False
+
+
+def get_access_token():
+    try:
+        access_token = session['access_token']
+        if check_access_token():
+            return access_token
+    except:
+        pass
+
+    if set_user_info(session['refresh_token']):
+        return session['access_token']
     else:
         return False
 
 
+@app.route('/register', methods=['POST'])
+def register():
+    refresh_token = request.get_json()['refresh_token']
+    if set_user_info(refresh_token):
+        add_sender(session['email'])
+        return jsonify({'success': True})
+    else:
+        return jsonify({'success': False})
+
+
+def change_request(req):
+    try:
+        session['access_token'] = req['access_token']
+    except:
+        pass
+    try:
+        session['refresh_token'] = req['refresh_token']
+    except:
+        pass
+    try:
+        session['email'] = req['email']
+    except:
+        pass
+
+
+@app.route('/login', methods=['GET'])
+def login():
+    # change_request(request.get_json())
+    try:
+        if get_access_token():
+            return jsonify({'successs': True,
+                            'email': session['email']})
+    except:
+        pass
+    return jsonify({'success': False})
+
+
+@app.route('/receivers', methods=['POST', 'GET'])
+def receivers_route():
+    if request.method == 'GET':
+        try:
+            return jsonify({
+                'success': True,
+                'receivers': get_receivers(session['email'])
+            })
+        except:
+            return jsonify({
+                'success': False
+            })
+    else:
+        try:
+            add = add_receivers(session['email'], request.get_json()['add'])
+        except:
+            add = False
+        try:
+            delete = delete_receivers(session['email'], request.get_json()['delete'])
+        except:
+            delete = False
+        return jsonify({
+            'success_add': add,
+            'success_delete': delete
+        })
+
+
+@app.route('/send-email', methods=['POST', 'GET'])
+def send_email():
+    if request.method == 'POST':
+        req = request.get_json()
+        if send_message(req['subject'], req['body']):
+            return jsonify({
+                'success': True
+            })
+        else:
+            return jsonify({
+                'success': False
+            })
+
+
+# @app.route('/receivers', methods=['POST', 'GET'])
+# def receivers():
+#     if request.method=='POST':
+#
+
+
+# @app.route('/get-link', methods=['GET'])
+# def get_link():
+#     redirect_uri=request.get_json()['redirect_uri']
+#
+#     link = Flow.from_client_secrets_file(
+#         'client_secret.json',
+#         scopes=['openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://mail.google.com/'],
+#         redirect_uri=redirect_uri
+#     ).\
+#         authorization_url(access_type='offline',
+#                           include_granted_scopes='true',
+#                           prompt='consent')
+#     return jsonify({'authorization_link': link[0]})
 
 if __name__ == '__main__':
-    app.run(port=8080,debug=True)
+    app.run(debug=True)
+# print(add_sender('123@123.com'))
