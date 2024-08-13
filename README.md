@@ -5,8 +5,8 @@ FastAPI app that can be used to authenticate users with their Google accounts an
 
 ## Features
 * Oauth2 authentication with Google
-* Server side cookies in Redis
-* Email sending to up to 500 people
+* Server side cookies stored in Redis
+* Email sending to up to 500 recipients
 * Multiple recipient lists
 
 
