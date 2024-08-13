@@ -2,6 +2,7 @@
 
 FastAPI app that can be used to authenticate users with their Google accounts and send HTML mails to up to 500 people.
 
+### [Front end](https://github.com/qara-qurt/email_marketing_service)
 
 ## Features
 * Oauth2 authentication with Google
@@ -55,7 +56,7 @@ Create project at https://console.cloud.google.com and get OAuth credentials. Pl
 emarketing_backend/src/config/client_secret.json
 ```
 
-### Run the app
+## Run the app
 ```commandline
 cd src
 uvicorn app:app
