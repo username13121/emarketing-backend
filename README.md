@@ -7,8 +7,9 @@ FastAPI app that can be used to authenticate users with their Google accounts an
 ## Features
 * Oauth2 authentication with Google
 * Server side cookies stored in Redis
+* Multiple recipient lists stored in PostgreSQL
+* Connection to PostgreSQL with SQL Alchemy
 * Email sending to up to 500 recipients
-* Multiple recipient lists
 
 
 ## Prerequisites
@@ -51,13 +52,15 @@ DB_URL = 'postgresql://localhost:5432'
 REDIS_URL='redis://localhost:6379'
 ```
 ### Credentials
-Create project at https://console.cloud.google.com and get OAuth credentials. Place them into config directory
+Create project at https://console.cloud.google.com, add your callback URL and get OAuth credentials. Place them into config directory
 ```
 emarketing_backend/src/config/client_secret.json
 ```
 
 ## Run the app
 ```commandline
-cd src
-uvicorn app:app
+uvicorn src.app:app
 ```
+
+## Documentation
+http://localhost:8000/docs
