@@ -16,8 +16,15 @@ from src.tools import userdata_to_creds, creds_to_userdata
 
 from src.database import create_tables, get_session, populate_tables
 from src.database.models import User
-from src.database.crud import get_rec_lists as crud_get_rec_lists, \
-    create_populate_rec_list as crud_populate_new_rec_list
+
+from src.database.crud import (
+    get_rec_lists as crud_get_rec_lists,
+    create_populate_rec_list as crud_populate_new_rec_list,
+    rename_rec_list as crud_rename_rec_list,
+    add_recs_to_list as crud_add_recs_to_list,
+    delete_lists as crud_delete_lists,
+    create_user as crud_create_user
+)
 
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,6 +41,7 @@ app = FastAPI()
 app.add_middleware(RedisSessionMiddleware, redis_url=REDIS_URL)
 
 
+# Note: validate with pydantic in every route
 @app.on_event('startup')
 async def on_startup():
     await create_tables()
@@ -69,8 +77,9 @@ async def get_auth_url(request: Request,
         raise HTTPException(status_code=500, detail="Error generating auth link")
 
 
-@app.post('/auth/callback', status_code=201)
-async def auth_callback(request: Request, auth_response_url: HttpUrl):
+@app.get('/auth/callback', status_code=201)
+async def auth_callback(auth_response_url: HttpUrl,
+                        request: Request, db_session: AsyncSession = Depends(get_session)):
     try:
 
         auth_response_url = str(auth_response_url)
@@ -80,10 +89,10 @@ async def auth_callback(request: Request, auth_response_url: HttpUrl):
         flow.fetch_token(authorization_response=auth_response_url)
 
         request.state.session = creds_to_userdata(flow.credentials)
+        email = request.state.session['email']
+        (await crud_create_user(db_session, email))
 
-        return {
-            "message": "Success",
-            "user": {"email": request.state.session['email']}}
+        return {"email": email}
 
     except ValueError as e:
         logger.error(f"Invalid credentials: {e}")
@@ -121,13 +130,18 @@ async def auth_validate(request: Request):
 
 @app.get('/rec-lists/')
 async def get_rec_lists(request: Request, db_session: AsyncSession = Depends(get_session)):
-    email = request.state.session['email']
+    email = request.state.session.get('email')
+    if not email:
+        raise HTTPException(status_code=401, detail='Unauthorized')
     return await crud_get_rec_lists(db_session, email)
 
 
 @app.get('/rec-lists/{rec_list_name}')
 async def get_rec_list(rec_list_name: str, request: Request, db_session: AsyncSession = Depends(get_session)):
-    email = request.state.session['email']
+    email = request.state.session.get('email')
+    if not email:
+        raise HTTPException(status_code=401, detail='Unauthorized')
+
     result = await crud_get_rec_lists(db_session, email, rec_list_name)
 
     if not result:
@@ -136,12 +150,49 @@ async def get_rec_list(rec_list_name: str, request: Request, db_session: AsyncSe
     return result
 
 
-# @app.post('/rec-lists/{rec_list_name}')
-# async def create_rec_list(
-#         request: Request,
-#         rec_list_name: str,
-#         recipients: list[str],
-#         db_session: AsyncSession = Depends(get_session)):
-#     email = request.state.session['email']
-#     result = await crud_populate_new_rec_list(db_session, email, rec_list_name, recipients)
-#     return result.scalar()
+@app.post('/rec-lists/{rec_list_name}', status_code=201)
+async def create_rec_list(
+        request: Request,
+        rec_list_name: str,
+        recipients: list[str] = None,
+        db_session: AsyncSession = Depends(get_session)):
+    email = request.state.session.get('email')
+    if not email:
+        raise HTTPException(status_code=401, detail='Unauthorized')
+
+    result = await crud_populate_new_rec_list(db_session, email, rec_list_name, recipients)
+    return result
+
+
+@app.patch('/rec-lists/{rec_list_name}')
+async def rename_rec_list(rec_list_name: str, new_rec_list_name,
+                          request: Request, db_session: AsyncSession = Depends(get_session)):
+    if rec_list_name == new_rec_list_name:
+        raise HTTPException(status_code=400, detail='Trying to rename recipient list to the same name')
+
+    email = request.state.session['email']
+
+    return await crud_rename_rec_list(db_session, email, rec_list_name, new_rec_list_name)
+
+
+@app.patch('/rec-lists/{rec_list_name}/recipients')
+async def add_to_recs_to_list(rec_list_name: str, rec_emails: list[str],
+                              request: Request, db_session: AsyncSession = Depends(get_session)):
+    if not rec_emails:
+        raise HTTPException(status_code=400, detail='Now new recipients provided')
+    email = request.state.session['email']
+    return await crud_add_recs_to_list(db_session, email, rec_list_name, rec_emails)
+
+
+@app.delete('/rec-lists')
+async def delete_all_rec_lists(request: Request, db_session: AsyncSession = Depends(get_session)):
+    email = request.state.session['email']
+
+    return await crud_delete_lists(db_session, email)
+
+
+@app.delete('/rec-lists/{rec_list_name}')
+async def delete_rec_list(rec_list_name: str, request: Request, db_session: AsyncSession = Depends(get_session)):
+    email = request.state.session['email']
+
+    return await crud_delete_lists(db_session, email, rec_list_name)

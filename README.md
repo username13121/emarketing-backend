@@ -5,11 +5,11 @@ FastAPI app that can be used to authenticate users with their Google accounts an
 ### [Front end](https://github.com/qara-qurt/email_marketing_service)
 
 ## Features
-* Oauth2 authentication with Google
-* Server side cookies stored in Redis
+* Google Oauth2 authentication
+* Redis server side session with custom middleware
 * Multiple recipient lists stored in PostgreSQL
-* Connection to PostgreSQL with SQL Alchemy
-* Email sending to up to 500 recipients
+* Connection to PostgreSQL with SQL Alchemy and asyncpg
+* Asynchronous architecture with async/await
 
 
 ## Prerequisites

@@ -16,13 +16,13 @@ class User(Base):
 class RecList(Base):
     __tablename__ = 'rec_lists'
 
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'))
     id: Mapped[int] = mapped_column(nullable=False, primary_key=True)
     name: Mapped[str] = mapped_column(nullable=False)
 
-    __table_args__ = ( # Note: get rid of composite primary key
-        PrimaryKeyConstraint('user_id', 'id'),
-        UniqueConstraint('user_id', 'id', 'name')
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'))
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'name'),
     )
 
 
@@ -32,14 +32,8 @@ class Recipient(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(nullable=False)
 
-    rec_list_id: Mapped[int] = mapped_column(nullable=False)
-    rec_list_user_id: Mapped[int] = mapped_column(nullable=False)
+    rec_list_id: Mapped[int] = mapped_column(ForeignKey('rec_lists.id', ondelete='CASCADE'), nullable=False)
 
     __table_args__ = (
-        UniqueConstraint('rec_list_user_id', 'rec_list_id', 'email'),
-        ForeignKeyConstraint(
-            ['rec_list_id', 'rec_list_user_id'],
-            ['rec_lists.id', 'rec_lists.user_id'],
-            ondelete='CASCADE'
-        )
+        UniqueConstraint('rec_list_id', 'email'),
     )

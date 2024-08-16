@@ -16,6 +16,8 @@ SCOPES = ['openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://m
 
 REDIS_URL = 'redis://localhost:6379'
 
+GMAIL_SEND_URL = 'https://www.googleapis.com/gmail/v1/users/me/messages/send'
+
 
 class Settings(BaseSettings):
     DB_HOST: str
