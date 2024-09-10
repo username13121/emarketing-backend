@@ -1,21 +1,25 @@
-import redis
-from starlette.middleware.base import BaseHTTPMiddleware
-from fastapi import Request
-import starlette.exceptions
-
 import uuid
+
+import redis
+from fastapi import Request
+from pydantic import HttpUrl
+from starlette.middleware.base import BaseHTTPMiddleware
 
 
 class RedisSessionMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, redis_url: str):
+    def __init__(self, app, redis_url: HttpUrl):
         super().__init__(app)
         self.redis = redis.asyncio.from_url(redis_url, decode_responses=True)
 
     async def dispatch(self, request: Request, call_next):
 
-        # Get session id from cookies or generate new one
-        session_id = request.cookies.get('session_id',
-                                         str(uuid.uuid4()))
+        # Validate session_id in cookies
+        try:
+            uuid.UUID(hex=request.cookies.get('session_id'), version=4)
+            session_id = request.cookies.get('session_id')
+        # If invalid, generate new session_id
+        except (ValueError, TypeError):
+            session_id = str(uuid.uuid4())
 
         # Get session data from Redis
         request.state.session = await self.redis.hgetall(session_id)
@@ -46,8 +50,8 @@ class RedisSessionMiddleware(BaseHTTPMiddleware):
         if deletes:
             await self.redis.hdel(session_id, *deletes)
 
-        # If session_id isn't in cookies, write it
-        if request.cookies.get('session_id') is None:
+        # If new session_id was generated, set it
+        if request.cookies.get('session_id') != session_id:
             response.set_cookie('session_id', session_id)
 
         return response

@@ -1,15 +1,15 @@
 # Emarketing backend
 
-FastAPI app that can be used to authenticate users with their Google accounts and send HTML mails to up to 500 people.
+FastAPI app that can be used to authenticate users with their Google accounts and send email using gmail.
 
 ### [Front end](https://github.com/qara-qurt/email_marketing_service)
 
 ## Features
-* Google Oauth2 authentication
-* Redis server side session with custom middleware
-* Multiple recipient lists stored in PostgreSQL
-* Connection to PostgreSQL with SQL Alchemy and asyncpg
-* Asynchronous architecture with async/await
+- Google Oauth2 authentication
+- Redis server side session with custom middleware
+- Multiple recipient lists stored in PostgreSQL
+- Connection to PostgreSQL with SQL Alchemy and asyncpg
+- Asynchronous architecture with async/await
 
 
 ## Prerequisites
@@ -39,27 +39,29 @@ venv/Scripts/activate
 pip install -r requirements.txt
 ```
 
-### Configure databases
-Update 'config/__init __.py'
-```python
-# config.__init__.py
-DB_NAME=os.getenv('DB_NAME')
-DB_USER=os.getenv('DB_USER')
-DB_PASSWORD=os.getenv('DB_PASSWORD')
-DB_URL = 'postgresql://localhost:5432'
-
-
-REDIS_URL='redis://localhost:6379'
-```
 ### Credentials
-Create project at https://console.cloud.google.com, add your callback URL and get OAuth credentials. Place them into config directory
+Create project at https://console.cloud.google.com, add your callback URL and get OAuth credentials.
+It should contain client_id and client_secret. Copy and paste those values into ".env" file.
+
+### Configuration
+Create ".env" file in the project root and fill all the data
+```dotenv
+DB_NAME=
+DB_USER=postgres
+DB_PASS=
+DB_HOST=localhost
+DB_PORT=5432
+
+redis_url=redis://localhost:6379
+
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
 ```
-emarketing_backend/src/config/client_secret.json
-```
+
 
 ## Run the app
 ```commandline
-uvicorn src.app:app
+uvicorn src.main:app
 ```
 
 ## Documentation
