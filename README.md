@@ -10,12 +10,11 @@ FastAPI app that can be used to authenticate users with their Google accounts an
 - Multiple recipient lists stored in PostgreSQL
 - Connection to PostgreSQL with SQL Alchemy and asyncpg
 - Asynchronous architecture with async/await
+- Dockerfile and docker compose
 
 
 ## Prerequisites
-* [Python](https://python.org)
-* [PostgreSQL](https://postgresql.org)
-* [Redis](https://redis.io)
+- [Docker](https://www.docker.com/)
 
 
 ## Installation:
@@ -25,18 +24,6 @@ FastAPI app that can be used to authenticate users with their Google accounts an
 ```commandline
 git clone https://github.com/username13121/emarketing-backend.git
 cd emarketing-backend
-```
-
-### Create a Virtual Environment
-
-```commandline
-python -m venv venv
-venv/Scripts/activate
-```
-
-### Install dependencies
-```commandline
-pip install -r requirements.txt
 ```
 
 ### Credentials
@@ -49,7 +36,7 @@ Create ".env" file in the project root and fill all the data
 DB_NAME=
 DB_USER=postgres
 DB_PASS=
-DB_HOST=localhost
+DB_HOST=db
 DB_PORT=5432
 
 redis_url=redis://localhost:6379
@@ -58,11 +45,10 @@ GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 ```
 
-
-## Run the app
+### Docker
 ```commandline
-uvicorn src.main:app
+docker-compose up --build -d
 ```
 
 ## Documentation
-http://localhost:8000/docs
+http://localhost/docs

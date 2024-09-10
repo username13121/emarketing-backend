@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  app:
+    container_name: emarketing_backend
+    build: ./
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./:/app/
+    ports:
+      - 80:80
+    restart: always
+    env_file:
+      - .env
+  db:
+    container_name: my_postgres
+    image: postgres
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASS}
+    ports:
+      - 5431:5432
+    volumes:
+      - ./postgres:/var/lib/postgres/data
+    restart: always
+  redis:
+    container_name: my_redis
+    image: redis
+    ports:
+      - 6378:6379
+    restart: always
